@@ -30,13 +30,14 @@ ln -sf /Applications/Ollama.app/Contents/Resources/ollama /opt/homebrew/bin/olla
 - `OLLAMA_NO_CLOUD=1`
 - `DEFAULT_CONTEXT_TOKENS=4096`
 
-With the launcher still running, use a second terminal to install the baseline. This test host already had `mistral:latest`; on a clean host pull it too, or use the smaller alternative shown below.
+With the launcher still running, use a second terminal to install the baseline and a switch-test model. This test host already had the mutable alias `mistral:latest`, whose installed digest corresponds to `mistral:v0.2`. The current `mistral:latest` is fine for a functional switch test but may select newer weights; use the commented versioned command instead when reproducing the recorded Mistral measurements.
 
 ```bash
 ollama pull llama3:8b
 ollama pull mistral:latest
+# Reproduce the recorded Mistral weights instead: ollama pull mistral:v0.2
 # Smaller switch-test alternative (815 MB):
-ollama pull gemma3:1b-it-q4_K_M
+# ollama pull gemma3:1b-it-q4_K_M
 ```
 
 Open <http://127.0.0.1:8000>. Pulling any exact model tag and pressing **Refresh** makes it selectable without a code change or application restart. API documentation is at <http://127.0.0.1:8000/docs>.
@@ -74,6 +75,8 @@ curl -sS http://127.0.0.1:8000/api/chat \
   -H 'Content-Type: application/json' \
   -d '{"model":"mistral:latest","messages":[{"role":"user","content":"Explain why the sky looks blue in one sentence."}],"stream":false,"options":{"temperature":0.2,"num_predict":64,"num_ctx":4096}}'
 ```
+
+That example follows the active `mistral:latest` setup command. To reproduce the recorded v0.2 weights, run `ollama pull mistral:v0.2` and change the request's `model` value (or the UI selection) to the exact tag `mistral:v0.2`.
 
 A missing exact tag returns HTTP 404 with `error.code=model_not_found`, an actionable pull command, and the available tags:
 
@@ -124,12 +127,12 @@ The machine was already under substantial unrelated memory pressure (about 9 GB 
 
 Installed model identities used for these measurements:
 
-| Exact requested tag | Registry digest | Blob size | Parameters | Quantization | Native context | Test context |
-| --- | --- | ---: | ---: | --- | ---: | ---: |
-| `llama3:8b` | `365c0bd3c000a25d28ddbf732fe1c6add414de7275464c4e4d1c3b5fcb5d8ad1` | 4,661,224,676 B | 8.0B | Q4_0 | 8,192 | 4,096 |
-| `mistral:latest` | `61e88e884507ba5e06c49b40e6226884b2a16e872382c2b44a42f2d119d804a5` | 4,109,865,159 B | 7B | Q4_0 | 32,768 | 4,096 |
+| Exact requested tag | Installed digest | Version identity | Blob size | Parameters | Quantization | Native context | Test context |
+| --- | --- | --- | ---: | ---: | --- | ---: | ---: |
+| `llama3:8b` | `365c0bd3c000a25d28ddbf732fe1c6add414de7275464c4e4d1c3b5fcb5d8ad1` | Llama 3 8B | 4,661,224,676 B | 8.0B | Q4_0 | 8,192 | 4,096 |
+| `mistral:latest` | `61e88e884507ba5e06c49b40e6226884b2a16e872382c2b44a42f2d119d804a5` | Same weights as `mistral:v0.2` | 4,109,865,159 B | 7B | Q4_0 | 32,768 | 4,096 |
 
-Tags can be mutable aliases; preserve the digest with every comparison result.
+Tags such as `latest` are mutable aliases. Preserve the installed digest with every result and prefer the versioned `mistral:v0.2` tag when reproducing this Mistral comparison; a fresh `mistral:latest` pull no longer identifies the measured weights.
 
 ## Current models worth comparing
 
