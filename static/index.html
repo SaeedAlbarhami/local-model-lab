@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Local Model Lab</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c1017;
+      --panel: #151b24;
+      --panel-2: #1d2632;
+      --text: #edf2f7;
+      --muted: #99a8ba;
+      --line: #2c3948;
+      --accent: #79d4b6;
+      --accent-strong: #a0ead2;
+      --danger: #ff9e9e;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top left, #172235 0, var(--bg) 42%);
+      color: var(--text);
+    }
+
+    button, select, textarea, input { font: inherit; }
+
+    .shell {
+      width: min(980px, calc(100% - 28px));
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 28px 0;
+      display: grid;
+      grid-template-rows: auto minmax(360px, 1fr) auto;
+      gap: 14px;
+    }
+
+    .bar, .chat, .composer {
+      border: 1px solid var(--line);
+      background: color-mix(in srgb, var(--panel) 94%, transparent);
+      border-radius: 16px;
+      box-shadow: 0 16px 50px rgb(0 0 0 / 20%);
+    }
+
+    .bar {
+      display: flex;
+      align-items: end;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 15px;
+    }
+
+    .brand { margin-right: auto; align-self: center; }
+    .brand h1 { font-size: 18px; margin: 0 0 3px; }
+    .brand p { color: var(--muted); font-size: 12px; margin: 0; }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    select, input, textarea {
+      color: var(--text);
+      border: 1px solid var(--line);
+      background: var(--bg);
+      border-radius: 9px;
+      outline: none;
+    }
+
+    select:focus, input:focus, textarea:focus, button:focus-visible {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgb(121 212 182 / 18%);
+    }
+    select { width: min(270px, 68vw); padding: 9px 34px 9px 10px; }
+    input { width: 92px; padding: 9px; }
+
+    button {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 9px;
+      padding: 9px 13px;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-strong); }
+    button:disabled { cursor: not-allowed; opacity: .48; }
+    .primary { background: var(--accent); color: #082019; border-color: var(--accent); font-weight: 700; }
+    .primary:hover:not(:disabled) { color: #082019; background: var(--accent-strong); }
+
+    .chat {
+      min-height: 360px;
+      padding: 18px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 13px;
+    }
+
+    .empty {
+      margin: auto;
+      max-width: 420px;
+      text-align: center;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .message {
+      width: min(82%, 720px);
+      padding: 12px 14px;
+      border-radius: 13px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .message.user { align-self: flex-end; background: #244137; border: 1px solid #37604f; }
+    .message.assistant { align-self: flex-start; background: var(--panel-2); border: 1px solid var(--line); }
+    .role { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 6px; }
+    .meta { color: var(--muted); font-size: 11px; margin-top: 8px; }
+
+    .composer { padding: 14px; }
+    textarea { width: 100%; min-height: 88px; resize: vertical; padding: 12px; line-height: 1.45; }
+    .composer-row { display: flex; align-items: center; gap: 9px; margin-top: 10px; }
+    .status { flex: 1; min-width: 0; color: var(--muted); font-size: 12px; }
+    .status.error { color: var(--danger); }
+
+    .spinner {
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      margin-right: 7px;
+      border: 2px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      vertical-align: -1px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+
+    @media (max-width: 680px) {
+      .shell { width: min(100% - 16px, 980px); padding: 8px 0; }
+      .bar { align-items: stretch; }
+      .brand { width: 100%; }
+      .model-field { flex: 1; }
+      select { width: 100%; }
+      .message { width: 94%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="bar">
+      <div class="brand">
+        <h1>Local Model Lab</h1>
+        <p>Private, same-origin chat through Ollama</p>
+      </div>
+      <label class="model-field">Model
+        <select id="model" data-testid="model-select" aria-label="Model" disabled>
+          <option value="">Loading models…</option>
+        </select>
+      </label>
+      <button id="refresh" data-testid="refresh-models" type="button">Refresh</button>
+      <button id="new-chat" data-testid="new-chat" type="button">New Chat</button>
+    </header>
+
+    <section id="conversation" class="chat" data-testid="conversation" aria-live="polite">
+      <div class="empty">Choose an installed model, then start a conversation. History stays in this browser tab and resets when you switch models.</div>
+    </section>
+
+    <section class="composer">
+      <textarea id="prompt" data-testid="prompt" aria-label="Prompt" placeholder="Ask your local model… (Enter to send, Shift+Enter for a new line)"></textarea>
+      <div class="composer-row">
+        <label>Temperature
+          <input id="temperature" data-testid="temperature" type="number" min="0" max="2" step="0.1" value="0.7">
+        </label>
+        <label>Max output
+          <input id="max-tokens" data-testid="max-tokens" type="number" min="1" max="8192" step="1" value="512">
+        </label>
+        <div id="status" class="status" data-testid="status" role="status" aria-live="polite">Connecting…</div>
+        <button id="send" data-testid="send" class="primary" type="button" disabled>Send</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const elements = {
+      model: document.querySelector('#model'),
+      refresh: document.querySelector('#refresh'),
+      newChat: document.querySelector('#new-chat'),
+      conversation: document.querySelector('#conversation'),
+      prompt: document.querySelector('#prompt'),
+      temperature: document.querySelector('#temperature'),
+      maxTokens: document.querySelector('#max-tokens'),
+      status: document.querySelector('#status'),
+      send: document.querySelector('#send')
+    };
+
+    let messages = [];
+    let busy = false;
+
+    function setStatus(text, kind = 'normal', loading = false) {
+      elements.status.className = kind === 'error' ? 'status error' : 'status';
+      elements.status.replaceChildren();
+      if (loading) {
+        const spinner = document.createElement('span');
+        spinner.className = 'spinner';
+        spinner.setAttribute('aria-hidden', 'true');
+        elements.status.append(spinner);
+      }
+      elements.status.append(document.createTextNode(text));
+    }
+
+    function setBusy(value) {
+      busy = value;
+      elements.send.disabled = value || !elements.model.value || !elements.prompt.value.trim();
+      elements.refresh.disabled = value;
+      elements.newChat.disabled = value;
+      elements.model.disabled = value || elements.model.options.length === 0;
+      elements.prompt.disabled = value;
+    }
+
+    function emptyConversation() {
+      elements.conversation.replaceChildren();
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'Start a new conversation with ' + (elements.model.value || 'an installed model') + '.';
+      elements.conversation.append(empty);
+    }
+
+    function resetConversation(statusText = 'New conversation') {
+      messages = [];
+      emptyConversation();
+      setStatus(statusText);
+      elements.prompt.focus();
+    }
+
+    function addMessage(message, meta = '') {
+      const empty = elements.conversation.querySelector('.empty');
+      if (empty) empty.remove();
+      const article = document.createElement('article');
+      article.className = 'message ' + message.role;
+      article.dataset.testid = 'message-' + message.role;
+      const role = document.createElement('div');
+      role.className = 'role';
+      role.textContent = message.role;
+      const content = document.createElement('div');
+      content.textContent = message.content;
+      article.append(role, content);
+      if (meta) {
+        const details = document.createElement('div');
+        details.className = 'meta';
+        details.dataset.testid = 'response-meta';
+        details.textContent = meta;
+        article.append(details);
+      }
+      elements.conversation.append(article);
+      elements.conversation.scrollTop = elements.conversation.scrollHeight;
+      return article;
+    }
+
+    function readableError(response, payload) {
+      if (payload && payload.error && payload.error.message) return payload.error.message;
+      if (payload && Array.isArray(payload.detail)) {
+        return payload.detail.map(item => item.msg).join('; ');
+      }
+      return `Request failed with HTTP ${response.status}.`;
+    }
+
+    async function loadModels() {
+      const previous = elements.model.value;
+      setBusy(true);
+      setStatus('Loading installed models…', 'normal', true);
+      try {
+        const response = await fetch('/api/models');
+        const payload = await response.json();
+        if (!response.ok) throw new Error(readableError(response, payload));
+        elements.model.replaceChildren();
+        for (const model of payload.models) {
+          const option = document.createElement('option');
+          option.value = model.name;
+          option.textContent = model.name;
+          elements.model.append(option);
+        }
+        if (previous && payload.models.some(model => model.name === previous)) {
+          elements.model.value = previous;
+        }
+        if (!payload.models.length) {
+          messages = [];
+          emptyConversation();
+          setStatus("No models installed. Run 'ollama pull llama3:8b'.", 'error');
+        } else {
+          if (previous && previous !== elements.model.value) resetConversation('Model changed; conversation cleared');
+          else setStatus(`${payload.count} model${payload.count === 1 ? '' : 's'} available`);
+        }
+      } catch (error) {
+        messages = [];
+        elements.model.replaceChildren();
+        emptyConversation();
+        setStatus(error.message, 'error');
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function formatMeta(payload) {
+      const metrics = payload.metrics || {};
+      const parts = [`Model: ${payload.model}`];
+      const duration = metrics.total_duration_ms ?? metrics.request_duration_ms;
+      if (duration != null) parts.push(`Duration: ${(duration / 1000).toFixed(2)}s`);
+      if (metrics.generation_tokens != null) parts.push(`Output: ${metrics.generation_tokens} tokens`);
+      if (metrics.generation_tokens_per_second != null) parts.push(`${metrics.generation_tokens_per_second.toFixed(2)} tok/s`);
+      return parts.join(' · ');
+    }
+
+    async function sendMessage() {
+      const content = elements.prompt.value.trim();
+      if (!content || busy || !elements.model.value) return;
+      const userMessage = { role: 'user', content };
+      messages.push(userMessage);
+      const userNode = addMessage(userMessage);
+      elements.prompt.value = '';
+      setBusy(true);
+      setStatus(`Generating with ${elements.model.value}…`, 'normal', true);
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: elements.model.value,
+            messages,
+            stream: false,
+            options: {
+              temperature: Number(elements.temperature.value),
+              num_predict: Number(elements.maxTokens.value),
+              num_ctx: 4096
+            }
+          })
+        });
+        const payload = await response.json();
+        if (!response.ok) throw new Error(readableError(response, payload));
+        messages.push(payload.message);
+        addMessage(payload.message, formatMeta(payload));
+        setStatus('Ready');
+      } catch (error) {
+        messages.pop();
+        userNode.remove();
+        elements.prompt.value = content;
+        if (!messages.length) emptyConversation();
+        setStatus(error.message, 'error');
+      } finally {
+        setBusy(false);
+        elements.prompt.focus();
+      }
+    }
+
+    elements.refresh.addEventListener('click', loadModels);
+    elements.newChat.addEventListener('click', () => resetConversation());
+    elements.model.addEventListener('change', () => resetConversation(`Switched to ${elements.model.value}; conversation cleared`));
+    elements.send.addEventListener('click', sendMessage);
+    elements.prompt.addEventListener('input', () => setBusy(busy));
+    elements.prompt.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+      }
+    });
+
+    loadModels();
+  </script>
+</body>
+</html>
