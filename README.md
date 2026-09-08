@@ -1,27 +1,36 @@
 # Local Model Lab
 
+> New here? Use the short [START_HERE.md](START_HERE.md) guide.
+
 A deliberately small, localhost-only Ollama client: one FastAPI backend and one dependency-free HTML page. The browser and external clients use the same API, and every chat request carries its own exact model tag—there is no global “current model.”
 
-## Exact macOS setup and start
+## One-command portable Mac setup
 
-Requirements: Apple Silicon macOS, Python 3.10+, and enough free disk for the selected weights.
+Copy or clone the source folder onto an Apple Silicon Mac, open Terminal in that folder, and run:
 
 ```bash
-cd /Users/sthabit/Documents/mbrhe/local-model-lab
-brew install ollama
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
 ./run.sh
 ```
 
-If Homebrew's formula service is unavailable, use Ollama's native macOS installer instead. This is the fallback used during the recorded test:
+If the transfer did not preserve executable permissions, the equivalent command is:
 
 ```bash
-curl -fsSL https://ollama.com/download/install.sh | OLLAMA_NO_START=1 sh
-ln -sf /Applications/Ollama.app/Contents/Resources/ollama /opt/homebrew/bin/ollama
+/bin/zsh run.sh
 ```
 
-`run.sh` binds Ollama to `127.0.0.1:11434` and FastAPI to `127.0.0.1:8000`. It starts Ollama when needed and applies these conservative defaults:
+No preinstalled Python, Homebrew, virtual environment, or Ollama CLI is required. On its first run, the launcher:
+
+1. Verifies native Apple Silicon and [macOS 14 Sonoma or newer](https://docs.ollama.com/macos).
+2. Downloads a project-local [`uv`](https://docs.astral.sh/uv/getting-started/installation/) and managed Python 3.12, then creates `.venv` and installs `requirements.txt`.
+3. Reuses an existing Ollama installation when available; otherwise downloads the official signed macOS app into the ignored `.runtime` directory without requiring Homebrew.
+4. Starts Ollama when needed and downloads the exact missing model tags `llama3.1:8b` and `llama3.3:70b`.
+5. Starts the web app at <http://127.0.0.1:8000>.
+
+Rerunning the command is safe: the environment is reused when compatible, packages are checked and updated, installed model tags are skipped, and interrupted Ollama pulls can resume. `.venv`, `.runtime`, model weights, caches, and logs are deliberately not source files; send the small source tree and let each destination Mac build its own compatible runtime.
+
+The first run needs an internet connection and roughly 48 GB for the two model artifacts; allow at least 55 GB free for working headroom. [`llama3.3:70b`](https://ollama.com/library/llama3.3/tags) alone is a 43 GB quantized model and generally needs at least 64 GB unified memory to run well. It will download on smaller Apple Silicon Macs as requested, but use [`llama3.1:8b`](https://ollama.com/library/llama3.1/tags) there. There is no official `llama3.3:8b`; Llama 3.3 was released as 70B only, so the launcher uses the official Llama 3.1 8B companion.
+
+The launcher binds Ollama to `127.0.0.1:11434` and FastAPI to `127.0.0.1:8000`. It applies these conservative defaults:
 
 - `OLLAMA_MAX_LOADED_MODELS=1`
 - `OLLAMA_NUM_PARALLEL=1`
@@ -30,21 +39,21 @@ ln -sf /Applications/Ollama.app/Contents/Resources/ollama /opt/homebrew/bin/olla
 - `OLLAMA_NO_CLOUD=1`
 - `DEFAULT_CONTEXT_TOKENS=4096`
 
-With the launcher still running, use a second terminal to install the baseline and a switch-test model. This test host already had the mutable alias `mistral:latest`, whose installed digest corresponds to `mistral:v0.2`. The current `mistral:latest` is fine for a functional switch test but may select newer weights; use the commented versioned command instead when reproducing the recorded Mistral measurements.
+Use `--setup-only` to provision everything without leaving the web app running, or `--skip-models` for a quick launcher/test run. To change the model set, provide comma-separated exact tags:
 
 ```bash
-ollama pull llama3:8b
-ollama pull mistral:latest
-# Reproduce the recorded Mistral weights instead: ollama pull mistral:v0.2
-# Smaller switch-test alternative (815 MB):
-# ollama pull gemma3:1b-it-q4_K_M
+./run.sh --setup-only
+./run.sh --skip-models
+LOCAL_MODEL_LAB_MODELS='llama3.1:8b,gemma3:1b' ./run.sh
 ```
 
-Open <http://127.0.0.1:8000>. Pulling any exact model tag and pressing **Refresh** makes it selectable without a code change or application restart. API documentation is at <http://127.0.0.1:8000/docs>.
+For a model disk on another volume, first quit any already-running Ollama process, then set `OLLAMA_MODELS` to an absolute directory before the first pull. Supported launcher overrides include `PORT`, `OLLAMA_TIMEOUT_SECONDS`, and `DEFAULT_CONTEXT_TOKENS`; the Ollama endpoint remains fixed to localhost so model management and the web app cannot accidentally target different servers.
+
+Open <http://127.0.0.1:8000>. Pulling another exact model tag and pressing **Refresh** makes it selectable without a code change or application restart. API documentation is at <http://127.0.0.1:8000/docs>.
 
 If Ollama is already running (for example, via its menu-bar app), `run.sh` reuses it. To guarantee the one-model, one-request, 4K-context, local-only settings, quit that instance first and let `run.sh` start Ollama.
 
-Once Python packages and weights are downloaded, runtime traffic stays on localhost: the page has no CDN, font, script, or image dependency, and the launcher disables Ollama cloud features.
+Once Python packages and weights are downloaded, runtime traffic stays on localhost: the page has no CDN, font, script, or image dependency, and a launcher-owned Ollama server has cloud features disabled. If `run.sh` reuses an Ollama instance that was already running, that process keeps the settings with which it was originally started.
 
 ## API examples
 
@@ -60,23 +69,21 @@ Installed models, with exact tags, digests, sizes, and quantization details:
 curl -sS http://127.0.0.1:8000/api/models
 ```
 
-Llama 3 chat (the shorter request from the specification also works because every option has a default):
+Llama 3.1 8B chat (the shorter request also works because every option has a default):
 
 ```bash
 curl -sS http://127.0.0.1:8000/api/chat \
   -H 'Content-Type: application/json' \
-  -d '{"model":"llama3:8b","messages":[{"role":"user","content":"Explain recursion with a short Python example."}],"stream":false,"options":{"temperature":0.2,"num_predict":256,"num_ctx":4096}}'
+  -d '{"model":"llama3.1:8b","messages":[{"role":"user","content":"Explain recursion with a short Python example."}],"stream":false,"options":{"temperature":0.2,"num_predict":256,"num_ctx":4096}}'
 ```
 
-Select the other model per request, without changing code or server state:
+Select Llama 3.3 70B per request, without changing code or server state:
 
 ```bash
 curl -sS http://127.0.0.1:8000/api/chat \
   -H 'Content-Type: application/json' \
-  -d '{"model":"mistral:latest","messages":[{"role":"user","content":"Explain why the sky looks blue in one sentence."}],"stream":false,"options":{"temperature":0.2,"num_predict":64,"num_ctx":4096}}'
+  -d '{"model":"llama3.3:70b","messages":[{"role":"user","content":"Explain why the sky looks blue in one sentence."}],"stream":false,"options":{"temperature":0.2,"num_predict":64,"num_ctx":4096}}'
 ```
-
-That example follows the active `mistral:latest` setup command. To reproduce the recorded v0.2 weights, run `ollama pull mistral:v0.2` and change the request's `model` value (or the UI selection) to the exact tag `mistral:v0.2`.
 
 A missing exact tag returns HTTP 404 with `error.code=model_not_found`, an actionable pull command, and the available tags:
 
@@ -91,11 +98,11 @@ Generation is intentionally non-streaming. `stream:true` is rejected. The defaul
 ## Automated tests
 
 ```bash
-.venv/bin/python -m pip install -r requirements-dev.txt
+.runtime/bin/uv pip install --python .venv/bin/python -r requirements-dev.txt
 .venv/bin/python -m pytest -q
 ```
 
-The suite uses a fake Ollama transport for deterministic health, exact-tag, per-request selection, defaults, metrics, missing-model, timeout, and validation checks. Real-inference and browser tests are recorded below.
+The current suite has 12 tests: nine API contract tests plus three hermetic launcher tests for exact missing-model pulls, rerun idempotence, overrides, paths with spaces, and setup-only behavior. Real-inference and browser tests from the original host audit are recorded below.
 
 ## Actual host audit
 
@@ -115,7 +122,7 @@ The machine was already under substantial unrelated memory pressure (about 9 GB 
 
 ## What was actually tested
 
-- Fresh virtual environment install succeeded. Automated contract tests: **9 passed** (one third-party Starlette/AnyIO deprecation warning).
+- The original API-only contract suite passed **9 tests** (one third-party Starlette/AnyIO deprecation warning); the current launcher tests are summarized above.
 - Before the pull, `/api/models` returned only `mistral:latest`. After `ollama pull llama3:8b`, the still-running backend immediately returned both exact tags, proving dynamic model discovery without restart.
 - The specification's exact minimal Llama request returned a complete generated recursion explanation. Warm run: `model=llama3:8b`, `done_reason=stop`, 455 generated tokens, 16.945 s total, **26.93 tok/s**.
 - API switching worked `llama3:8b` → `mistral:latest` → `llama3:8b`. The measured Mistral switch took 3.350 s including 2.328 s load (24 output tokens, 28.57 tok/s); switching back took 3.179 s including 2.871 s load (5 output tokens, 42.92 tok/s).

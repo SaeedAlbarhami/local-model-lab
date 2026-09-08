@@ -299,7 +299,7 @@
         if (!payload.models.length) {
           messages = [];
           emptyConversation();
-          setStatus("No models installed. Run 'ollama pull llama3:8b'.", 'error');
+          setStatus("No models installed. Re-run './run.sh' to download the defaults.", 'error');
         } else {
           if (previous && previous !== elements.model.value) resetConversation('Model changed; conversation cleared');
           else setStatus(`${payload.count} model${payload.count === 1 ? '' : 's'} available`);
